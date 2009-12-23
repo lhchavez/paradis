@@ -26,6 +26,7 @@ public class Mapper<KEYIN extends Writable, VALUEIN extends Writable, KEYOUT ext
 
         while(context.reader.nextKeyValue()) {
             map(context.reader.getCurrentKey(), context.reader.getCurrentValue(), context);
+            context.progress.set(context.reader.getProgress());
         }
 
         cleanup(context);

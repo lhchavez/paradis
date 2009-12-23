@@ -21,6 +21,7 @@ import mx.lhchavez.paradis.io.RecordReader;
 import mx.lhchavez.paradis.io.RecordWriter;
 import mx.lhchavez.paradis.io.Writable;
 import mx.lhchavez.paradis.util.Configuration;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  *
@@ -31,12 +32,14 @@ public class MapperContext<KEYIN extends Writable, VALUEIN extends Writable, KEY
     public TaskAttemptID taskid;
     private RecordWriter<KEYOUT, VALUEOUT> writer;
     public RecordReader<KEYIN, VALUEIN> reader;
+    public Progress progress;
 
-    public MapperContext(Configuration conf, TaskAttemptID taskid, RecordReader<KEYIN, VALUEIN> reader, RecordWriter<KEYOUT, VALUEOUT> writer) {
+    public MapperContext(Configuration conf, TaskAttemptID taskid, RecordReader<KEYIN, VALUEIN> reader, RecordWriter<KEYOUT, VALUEOUT> writer, Progress progress) {
         this.conf = conf;
         this.taskid = taskid;
         this.writer = writer;
         this.reader = reader;
+        this.progress = progress;
     }
 
     public void write(KEYOUT k, VALUEOUT v) throws IOException {

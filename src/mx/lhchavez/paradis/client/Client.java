@@ -22,6 +22,7 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.net.HttpURLConnection;
@@ -37,14 +38,12 @@ import mx.lhchavez.paradis.mapreduce.MapperContext;
 import mx.lhchavez.paradis.mapreduce.TaskAttemptID;
 import mx.lhchavez.paradis.util.Configuration;
 import mx.lhchavez.paradis.util.FileUtils;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  * @author lhchavez
  */
 public class Client {
-    private static String host = "paradis-dasl4ltd.qro.itesm.mx";
-    private static int port = 17252;
-    private static String uri = "/";
     private static URL paradis;
     public static boolean running = true;
 
@@ -53,16 +52,20 @@ public class Client {
             try {
                  paradis = new URL(args[0]);
             } catch(MalformedURLException muex) {}
-        } else {
-            try {
-                 paradis = new URL("http", host, port, uri);
-            } catch(MalformedURLException muex) {}
+        }
+
+        if(paradis == null) {
+            System.err.println("paradis client");
+            System.err.println();
+            System.err.println("Usage:");
+            System.err.println();
+            System.err.println("\tjava [java options] -cp paradis.jar mx.lhchavez.paradis.Client <url of the paradis server>");
+            System.exit(1);
         }
 
         Thread.currentThread().setPriority(Thread.MIN_PRIORITY);
         SecurityManager paradisSecManager = new ParadisSecurityManager(paradis.getHost(), paradis.getPort(), new File("").getAbsolutePath() + File.separator);
         System.setSecurityManager(paradisSecManager);
-        File root = new File(".");
         
         while(running) {
             try {
@@ -73,16 +76,19 @@ public class Client {
 
                     in.readInt();
 
-                    TaskAttemptID taid = new TaskAttemptID();
+                    final TaskAttemptID taid = new TaskAttemptID();
+                    final Object lock = new Object();
+                    final Progress progress = new Progress();
 
                     taid.readFields(in);
 
                     try{
                         File jobwd = new File("jobs" + File.separator + taid.getJobID());
                         File configXML = new File(jobwd.getCanonicalPath() + File.separator + "config.xml");
+                        File outputDirectory = new File(jobwd.getCanonicalPath() + File.separator + "out");
 
                         if(jobwd.mkdirs() || !configXML.exists()) {
-                            // trabajo nuevo, hay que bajar muchas cosas del servidor
+                            // this job is new, we need to download a lot of stuff from the server
 
                             // config.xml
                             FileUtils.copy(new URL(paradis, "job/" + taid.getJobID() + "/config.xml").openStream(), new FileOutputStream(configXML));
@@ -102,6 +108,8 @@ public class Client {
                             }
 
                             sharedZip.delete();
+
+                            outputDirectory.mkdir();
                         }
 
                         Configuration conf = new Configuration(new FileInputStream(configXML), jobwd);
@@ -114,6 +122,7 @@ public class Client {
                         }
 
                         /*
+                        // libraries are disabled for the time being
                         for(String jarFile : conf.getStringArray("jar.libraries")) {
                             File f = new File("libraries" + File.separator + jarFile + ".jar");
                             if(!f.exists()) {
@@ -127,13 +136,46 @@ public class Client {
                         StreamRecordReader srr = new StreamRecordReader(in, conf.getKeyInClass(), conf.getValueInClass());
                         StreamRecordWriter srw = new StreamRecordWriter();
 
-                        File outputFile = new File(jobwd.getCanonicalPath() + File.separator + taid.getTaskID());
+                        File outputFile = new File(outputDirectory.getCanonicalPath() + File.separator + taid.getTaskID());
                         srw.setOutput(new RandomAccessFile(outputFile, "rw"));
 
-                        MapperContext context = new MapperContext(conf, taid, srr, srw);
+                        MapperContext context = new MapperContext(conf, taid, srr, srw, progress);
                         Mapper m = conf.getMapperClass().newInstance();
 
+                        new Thread(new Runnable() {
+                            public void run() {
+                                synchronized(lock) {
+                                    while(progress.get() < 1.0f) {
+                                        try {
+                                            lock.wait(60 * 1000);
+                                        } catch (InterruptedException ex) {}
+
+                                        if(progress.get() == 1.0f) break;
+
+                                        String progressString = String.valueOf(progress.get());
+
+                                        try{
+                                            HttpURLConnection progressURL = (HttpURLConnection)new URL(paradis, "job/" + taid.getJobID() + "/task/" + taid.getTaskID() + "/progress").openConnection();
+
+                                            progressURL.setDoInput(false);
+                                            progressURL.setDoOutput(true);
+
+                                            progressURL.addRequestProperty("Content-Type", "text/plain");
+                                            progressURL.setFixedLengthStreamingMode(progressString.length());
+                                            OutputStream out = progressURL.getOutputStream();
+                                            out.write(progressString.getBytes());
+                                            out.close();
+                                        } catch(IOException ex) {}
+                                    }
+                                }
+                            }
+                        }).start();
+
                         m.run(context);
+                        synchronized(lock) {
+                            progress.set(1.0f);
+                            lock.notify();
+                        }
 
                         srw.close();
 
@@ -155,6 +197,11 @@ public class Client {
                         out.close();
                     } catch(Exception ex) {
                         WritableThrowable wt = new WritableThrowable(ex);
+                        
+                        synchronized(lock) {
+                            progress.set(1.0f);
+                            lock.notify();
+                        }
 
                         ByteArrayOutputStream baos = new ByteArrayOutputStream();
                         DataOutputStream dos = new DataOutputStream(baos);

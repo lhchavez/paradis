@@ -29,6 +29,7 @@ import mx.lhchavez.paradis.mapreduce.TaskAttemptID;
 import mx.lhchavez.paradis.server.Job;
 import mx.lhchavez.paradis.server.JobFactory;
 import mx.lhchavez.paradis.util.Configuration;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  *
@@ -36,7 +37,16 @@ import mx.lhchavez.paradis.util.Configuration;
  */
 public class Standalone {
     public static void main(String[] args) throws Exception {
-        Job currentJob = JobFactory.getInstance().createJob(args[0]);
+        File zipFile = null;
+
+        if(args.length > 0) {
+            zipFile = new File(args[0]);
+            if(!zipFile.exists()) {
+                zipFile = null;
+            }
+        }
+
+        Job currentJob = JobFactory.getInstance().createJob(zipFile.getCanonicalPath());
         currentJob.setStatus(Job.Status.Running);
 
         Configuration conf = currentJob.getConfiguration();
@@ -60,7 +70,7 @@ public class Standalone {
             File taskOutput = new File("tmp");
             srw.setOutput(new RandomAccessFile(taskOutput, "rw"));
             
-            MapperContext mc = new MapperContext(currentJob.getConfiguration(), taid, srr, srw);
+            MapperContext mc = new MapperContext(currentJob.getConfiguration(), taid, srr, srw, new Progress());
             mapper.run(mc);
 
             srw.close();

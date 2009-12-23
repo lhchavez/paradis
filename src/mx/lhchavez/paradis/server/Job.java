@@ -28,6 +28,7 @@ import mx.lhchavez.paradis.io.StreamRecordReader;
 import mx.lhchavez.paradis.mapreduce.*;
 import mx.lhchavez.paradis.util.Configuration;
 import mx.lhchavez.paradis.util.FileUtils;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  *
@@ -158,7 +159,7 @@ public class Job<KEYIN extends Writable, VALUEIN extends Writable, KEYOUT extend
             PrintWriter out = null;
 
             try {
-                out = new PrintWriter(new FileWriter(jobDirectory.getCanonicalPath() + File.separator + "errors" + File.separator + taid.getTaskID()));
+                out = new PrintWriter(new FileWriter(jobDirectory.getCanonicalPath() + File.separator + "errors" + File.separator + taid.getTaskID() + "." + taid.getAttemptID()));
                 out.println(ex.getMessage());
                 ex.printStackTrace(out);
             } catch (IOException exc) {
@@ -187,10 +188,12 @@ public class Job<KEYIN extends Writable, VALUEIN extends Writable, KEYOUT extend
     public void setStatus(Status status) {
         this.status = status;
 
-        try {
-            new FileOutputStream(jobDirectory.getCanonicalFile() + File.separator + "finished").close();
-        } catch (IOException ex) {
-            Logger.getLogger(Job.class.getName()).log(Level.SEVERE, null, ex);
+        if(status == Status.Finished || status == Status.Error) {
+            try {
+                new FileOutputStream(jobDirectory.getCanonicalFile() + File.separator + "finished").close();
+            } catch (IOException ex) {
+                Logger.getLogger(Job.class.getName()).log(Level.SEVERE, null, ex);
+            }
         }
     }
 
@@ -200,6 +203,11 @@ public class Job<KEYIN extends Writable, VALUEIN extends Writable, KEYOUT extend
         for(File f : jobDirectory.listFiles()) {
             if(f.getName().equals("output")) continue;
             if(f.getName().equals("finished")) continue;
+            if(f.getName().equals("errors")) {
+                // only delete errors directory if it's empty
+                f.delete();
+                continue;
+            }
 
             if(f.isFile()) {
                 f.delete();
@@ -214,5 +222,9 @@ public class Job<KEYIN extends Writable, VALUEIN extends Writable, KEYOUT extend
 
     void setCallback(JobFinishCallback jobFinishCallback) {
         callback = jobFinishCallback;
+    }
+
+    public Progress getProgress() {
+        return index.getProgress();
     }
 }

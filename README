@@ -4,3 +4,4 @@ a Map/Reduce library/client/server that uses voluntary computing to create virtu
 usage:
 java -cp paradis.jar:lib/restlet.jar mx.lhchavez.paradis.server.Server
 java -cp paradis.jar mx.lhchavez.paradis.client.Client http://server:17252/
+java -jar paradis.jar

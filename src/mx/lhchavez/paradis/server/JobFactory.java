@@ -55,7 +55,7 @@ public class JobFactory {
         for(String jarFile : conf.getStringArray("jar.file")) {
             ZipEntry jarEntry = zip.getEntry(jarFile);
 
-            // el zipFile debe además tener el .jar apuntado por jarFile
+            // the zipFile must contain every single .jar described
             if(jarEntry == null) {
                 throw new IllegalArgumentException("The input zipfile is missing the jar file " + jarFile);
             }
@@ -74,7 +74,7 @@ public class JobFactory {
 
         conf.setJobDirectory(jobwd);
 
-        // copiemos los .jar y el .xml a la carpeta de trabajo
+        // let's copy the jar files and the config.xml to the working directory
 
         for(String jarFile : jarFiles) {
             FileUtils.extract(zip, jarFile, jobwd, jarFile);
@@ -86,7 +86,7 @@ public class JobFactory {
 
         new File(jobID + File.separator + "errors").mkdir();
 
-        // extraemos cualquier archivo de datos al filesystem
+        // extract any data to the filesystem
         File dataOutput = new File(jobID + File.separator + "data");
         dataOutput.mkdir();
 
@@ -106,7 +106,7 @@ public class JobFactory {
             }
         }
 
-        // extraemos cualquier archivo compartido al filesystem
+        // also the shared files. plus, re-compress them into shared.zip
         File sharedOutput = new File(jobID + File.separator + "shared");
         sharedOutput.mkdir();
 

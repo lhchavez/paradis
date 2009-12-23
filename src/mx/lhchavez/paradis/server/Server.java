@@ -25,6 +25,7 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import mx.lhchavez.paradis.io.WritableThrowable;
 import mx.lhchavez.paradis.mapreduce.TaskAttemptID;
+import mx.lhchavez.paradis.util.Progress;
 import org.restlet.Application;
 import org.restlet.Component;
 import org.restlet.Request;
@@ -285,11 +286,34 @@ public class Server extends Application {
 
                 if(j != null) {
                     TaskAttemptID taid = new TaskAttemptID(j.getID(), Long.valueOf((String)request.getAttributes().get("taskId")), 0);
-
+                    taid.touchAssignTime();
+                    Progress p = taid.getProgress();
+                    if(p != null)
+                        p.set(Float.valueOf(request.getEntityAsText()));
                     response.setEntity(new StringRepresentation("", MediaType.TEXT_PLAIN));
                 } else {
                     response.setStatus(Status.CLIENT_ERROR_NOT_FOUND);
                     response.setEntity(new StringRepresentation("", MediaType.TEXT_PLAIN));
+                }
+            }
+        });
+
+        router.attach("/job/{jobId}/progress", new Restlet(getContext()) {
+            @Override
+            public void handle(Request request, Response response) {
+                File finished = new File("jobs" + File.separator + (String)request.getAttributes().get("jobId") + File.separator + "finished");
+
+                if(finished.exists()) {
+                    response.setEntity(new StringRepresentation(String.format("{\"status\":\"%s\",\"progress\":1.0,\"total\":1.0}", (String)request.getAttributes().get("jobId")), MediaType.TEXT_PLAIN));
+                } else {
+                    Job j = JobTracker.getInstance().getById((String)request.getAttributes().get("jobId"));
+
+                    if(j != null) {
+                        response.setEntity(new StringRepresentation(j.getProgress().toString(), MediaType.TEXT_PLAIN));
+                    } else {
+                        response.setStatus(Status.CLIENT_ERROR_NOT_FOUND);
+                        response.setEntity(new StringRepresentation("", MediaType.TEXT_PLAIN));
+                    }
                 }
             }
         });

@@ -16,20 +16,24 @@
 
 package mx.lhchavez.paradis.util;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
 import java.util.ArrayList;
+import mx.lhchavez.paradis.io.Writable;
 
 /**
  *
  * @author lhchavez
  */
-public class Progress {
+public class Progress implements Writable {
     private ArrayList<Progress> childNodes;
     private String status;
     private float progress;
     private Progress current;
 
     public Progress() {
-        this(null);
+        this("");
     }
 
     private Progress(String status) {
@@ -90,8 +94,45 @@ public class Progress {
         this.status = status;
     }
 
+    public void write(DataOutput out) throws IOException {
+        out.writeUTF(status);
+        out.writeFloat(progress);
+        out.writeInt(childNodes.size());
+
+        for(Progress p : childNodes) {
+            p.write(out);
+        }
+    }
+
+    public void readFields(DataInput in) throws IOException {
+        status = in.readUTF();
+        progress = in.readFloat();
+
+        childNodes = new ArrayList<Progress>();
+        int children = in.readInt();
+
+        for(int i = 0; i < children; i++) {
+            Progress p = new Progress();
+            p.readFields(in);
+            childNodes.add(p);
+        }
+    }
+
     @Override
     public String toString() {
-        return String.valueOf(status);
+        StringBuilder data = new StringBuilder(String.format("{\"status\":\"%s\",\"progress\":%f", status, progress));
+
+        if(childNodes.size() > 0) {
+            data.append(",\"childNodes\":[");
+
+            for(int i = 0; i < childNodes.size(); i++) {
+                if(i > 0) data.append(",");
+                data.append(childNodes.get(i).toString());
+            }
+
+            data.append("]");
+        }
+
+        return data.append(String.format(",\"total\":%f}", get())).toString();
     }
 }

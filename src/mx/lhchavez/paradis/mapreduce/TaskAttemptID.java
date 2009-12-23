@@ -20,6 +20,7 @@ import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import mx.lhchavez.paradis.io.WritableComparable;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  *
@@ -33,6 +34,7 @@ public class TaskAttemptID implements WritableComparable<TaskAttemptID> {
     private byte[] clientId = new byte[32];
     private Status status = Status.Unassigned;
     public static final int INDEX_LENGTH = 42;
+    private Progress progress;
 
     public static enum Status {
         Unassigned,
@@ -47,6 +49,8 @@ public class TaskAttemptID implements WritableComparable<TaskAttemptID> {
         this.attemptID = attemptID;
         this.assignTime = System.currentTimeMillis();
         this.status = Status.Unassigned;
+        this.progress = new Progress();
+        this.progress.setStatus(jobID + "/" + taskID);
     }
 
     public TaskAttemptID() {
@@ -137,6 +141,20 @@ public class TaskAttemptID implements WritableComparable<TaskAttemptID> {
      */
     public void setStatus(Status status) {
         this.status = status;
+    }
+
+    /**
+     * @param progress the progress to set
+     */
+    public void setProgress(Progress progress) {
+        this.progress = progress;
+    }
+
+    /**
+     * @return this task's progress
+     */
+    public Progress getProgress() {
+        return progress;
     }
 
     @Override

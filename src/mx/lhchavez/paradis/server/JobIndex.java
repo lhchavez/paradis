@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.TreeMap;
 import mx.lhchavez.paradis.mapreduce.TaskAttemptID;
+import mx.lhchavez.paradis.util.Progress;
 
 /**
  *
@@ -36,11 +37,20 @@ public class JobIndex implements Closeable {
     private Map<Long, TaskAttemptID> waitingTasks;
     private RandomAccessFile indexFile;
     private String jobId;
+    private Progress progress;
+    private Progress mapperProgress;
+    private Progress reducerProgress;
 
     public JobIndex(String jobId, File directory) throws IOException {
         this.jobId = jobId;
         pendingTasks = new LinkedList<TaskAttemptID>();
         waitingTasks = new TreeMap<Long, TaskAttemptID>();
+
+        progress = new Progress();
+        progress.setStatus(jobId);
+
+        mapperProgress = progress.addPhase("mapPhase");
+        reducerProgress = progress.addPhase("reducePhase");
 
         indexFile = new RandomAccessFile(directory.getCanonicalPath() + File.separator + "index", "rw");
     }
@@ -51,9 +61,12 @@ public class JobIndex implements Closeable {
                 while(true) {
                     TaskAttemptID taid = new TaskAttemptID();
                     taid.readIndexFields(indexFile);
+                    taid.setProgress(mapperProgress.addPhase(String.valueOf(taid.getTaskID())));
 
                     if(taid.getStatus() != TaskAttemptID.Status.Finished) {
                         pendingTasks.add(taid);
+                    } else {
+                        taid.getProgress().set(1.0f);
                     }
                 }
             } catch(EOFException ex) {
@@ -71,6 +84,7 @@ public class JobIndex implements Closeable {
 
         for (long i = 0; i < taskCount; i++) {
             taid = new TaskAttemptID(this.jobId, i, 0);
+            taid.setProgress(mapperProgress.addPhase(String.valueOf(i)));
             pendingTasks.add(taid);
             taid.writeIndex(indexFile);
         }
@@ -117,6 +131,10 @@ public class JobIndex implements Closeable {
         if(taid == null) return false;
 
         taid.setStatus(TaskAttemptID.Status.Finished);
+        Progress p = taid.getProgress();
+        if(p != null)
+            p.set(1.0f);
+
         waitingTasks.remove(taskID);
 
         try {
@@ -137,6 +155,9 @@ public class JobIndex implements Closeable {
         boolean isFatal = false;
 
         if(taid == null) return false;
+        Progress p = taid.getProgress();
+        if(p != null)
+            p.set(0);
 
         if(taid.getAttemptID() == Job.MAX_TASK_ATTEMPTS) {
             isFatal = true;
@@ -157,5 +178,13 @@ public class JobIndex implements Closeable {
 
     public void close() throws IOException {
         indexFile.close();
+    }
+
+    public Progress getProgress() {
+        return progress;
+    }
+
+    public Progress getReducerProgress() {
+        return reducerProgress;
     }
 }
